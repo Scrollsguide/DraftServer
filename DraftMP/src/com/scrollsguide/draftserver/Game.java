@@ -9,6 +9,21 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import com.scrollsguide.draftserver.messages.ChatMessage;
+import com.scrollsguide.draftserver.messages.CreatorDisconnectMessage;
+import com.scrollsguide.draftserver.messages.DeckMessage;
+import com.scrollsguide.draftserver.messages.FinalizePickMessage;
+import com.scrollsguide.draftserver.messages.GameFinishedMessage;
+import com.scrollsguide.draftserver.messages.GameInfoMessage;
+import com.scrollsguide.draftserver.messages.JoinMessage;
+import com.scrollsguide.draftserver.messages.Message;
+import com.scrollsguide.draftserver.messages.PackMessage;
+import com.scrollsguide.draftserver.messages.PartLobbyMessage;
+import com.scrollsguide.draftserver.messages.PlayerListMessage;
+import com.scrollsguide.draftserver.messages.PlayerPickMessage;
+import com.scrollsguide.draftserver.messages.RoundFinishedMessage;
+import com.scrollsguide.draftserver.messages.StartGameMessage;
+
 public class Game {
 
 	private final String name;
@@ -85,7 +100,7 @@ public class Game {
 	}
 
 	public void playerJoins(Player p) {
-		broadcast("{\"msg\":\"join\", \"d\": \"" + p.getName() + "\",\"f\":\"" + this.getName() + "\"}");
+		broadcast(new JoinMessage(p.getName(),  this.getName()));
 
 		players.add(p);
 
@@ -95,46 +110,15 @@ public class Game {
 	}
 
 	private void sendGameInfo(Player p) {
-		try {
-			JSONObject toPlayer = new JSONObject();
-			toPlayer.put("msg", "jg");
-			toPlayer.put("d", name);
-			toPlayer.put("p", numPacks);
-			toPlayer.put("t", timeout);
-			if (p == getCreator()) {
-				toPlayer.put("cr", true);
-			} else {
-				toPlayer.put("cr", false);
-			}
-			p.send(toPlayer.toString());
-		} catch (JSONException e) {
-			e.printStackTrace();
-		}
+		p.send(new GameInfoMessage(name, numPacks, timeout, p == getCreator()));
 	}
 
 	private void broadcastPlayerList() {
-		try {
-			JSONArray playerList = new JSONArray();
-
-			for (Player p : players) {
-				playerList.put(p.getName());
-			}
-
-			JSONObject j = new JSONObject();
-			j.put("msg", "plist");
-			j.put("f", "g"); // for: game. Other is f:s, playerlist for entire server
-			j.put("data", playerList);
-
-			String msg = j.toString();
-
-			broadcast(msg);
-		} catch (JSONException e) {
-			e.printStackTrace();
-		}
+		broadcast(new PlayerListMessage(PlayerListMessage.SCOPE.GAME, players));
 	}
 
 	public void creatorDC() {
-		broadcast("{\"msg\":\"cdc\"}");
+		broadcast(new CreatorDisconnectMessage());
 
 		for (Player p : players) {
 			if (getCreator() != p) {
@@ -150,11 +134,15 @@ public class Game {
 	 * Starts the first round, notifies players of start. Fails when there are not enough players
 	 */
 	public void start() {
+		// is the game already started?
+		if (this.isStarted()){
+			return;
+		}
 		if (players.size() < 2) {
-			getCreator().send("{\"msg\":\"c\",\"d\":\"You can't start with less than 2 players\", \"u\":\"System\"}");
+			getCreator().sendError("You can't start the game with less than 2 players.");
 		} else {
 			started = true;
-			broadcast("{\"msg\":\"sg\"}");
+			broadcast(new StartGameMessage());
 
 			picks = new Scroll[players.size()];
 			// decks = new Deck[players.size()];
@@ -191,19 +179,8 @@ public class Game {
 
 	private void sendPackToPlayer(Player player, int packIndex) {
 		Pack pack = packs[currentRound][packIndex];
-
-		try {
-			JSONArray scrollList = pack.getJSONArray();
-			JSONObject toPlayer = new JSONObject();
-			toPlayer.put("msg", "pl");
-			toPlayer.put("d", scrollList);
-			toPlayer.put("p", (packIndex + 1));
-			toPlayer.put("r", (currentRound + 1));
-			toPlayer.put("t", timeout);
-			player.send(toPlayer.toString());
-		} catch (JSONException e) {
-			e.printStackTrace();
-		}
+		
+		player.send(new PackMessage(pack, packIndex + 1, currentRound + 1, timeout));
 	}
 
 	private void preparePacks() {
@@ -220,7 +197,7 @@ public class Game {
 		}
 	}
 
-	public void broadcast(String msg) {
+	public void broadcast(Message msg) {
 		if (players != null) {
 			for (Player p : players) {
 				if (!p.isBot) {
@@ -250,7 +227,7 @@ public class Game {
 
 		if (!hasPicked[playerIndex]) {
 			hasPicked[playerIndex] = true;
-			broadcast("{\"msg\":\"pp\", \"d\":\"" + pl.getName() + "\"}");
+			broadcast(new PlayerPickMessage(pl));
 
 			totalPicked++;
 
@@ -274,14 +251,7 @@ public class Game {
 				decks.get(players.get(playerIndex).getName()).add(picked);
 			}
 
-			try {
-				JSONObject pickedJSON = new JSONObject();
-				pickedJSON.put("msg", "ps");
-				pickedJSON.put("d", picked.getId()); // picked.getJSONObject();
-				players.get(playerIndex).send(pickedJSON.toString());
-			} catch (JSONException e) {
-				e.printStackTrace();
-			}
+			players.get(playerIndex).send(new FinalizePickMessage(picked));
 		}
 	}
 
@@ -294,8 +264,7 @@ public class Game {
 				packDirection = -packDirection; // switch direction
 				currentRound++;
 
-				broadcast("{\"msg\":\"fr\",\"f\":" + currentRound + ",\"m\":" + numPacks + ",\"d\":" + packDirection
-						+ "}");
+				broadcast(new RoundFinishedMessage(currentRound, numPacks, packDirection));
 
 				round();
 			} else { // all done! :D
@@ -306,7 +275,7 @@ public class Game {
 
 	private void gameFinished() {
 		finished = true;
-		broadcast("{\"msg\":\"fg\"}");
+		broadcast(new GameFinishedMessage());
 
 		broadcastPlayerList();
 	}
@@ -331,7 +300,7 @@ public class Game {
 	public boolean part(Player player) {
 		if (players.contains(player)) {
 			players.remove(player);
-			broadcast("{\"msg\":\"part\",\"d\":\"" + player.getName() + "\", \"f\": \"" + this.getName() + "\"}");
+			broadcast(new PartLobbyMessage(player, this));
 			broadcastPlayerList();
 			return true;
 		}
@@ -367,18 +336,7 @@ public class Game {
 		if (!decks.containsKey(playerName)) {
 			player.sendError("Player " + playerName + " not found in the current game");
 		} else {
-			try {
-				JSONArray deckJSON = decks.get(playerName).getDeck();
-
-				JSONObject out = new JSONObject();
-				out.put("msg", "sp");
-				out.put("p", playerName);
-				out.put("d", deckJSON);
-
-				player.send(out.toString());
-			} catch (JSONException e) {
-				e.printStackTrace();
-			}
+			player.send(new DeckMessage(playerName, decks.get(playerName)));
 		}
 	}
 }

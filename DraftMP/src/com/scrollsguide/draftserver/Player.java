@@ -1,5 +1,7 @@
 package com.scrollsguide.draftserver;
 
+import com.scrollsguide.draftserver.messages.Message;
+
 
 public abstract class Player {
 
@@ -37,7 +39,9 @@ public abstract class Player {
 		return inGame != null;
 	}
 
-	public abstract void send(String msg);
+	public abstract void send(Message msg);
+	
+	// public abstract void send(String msg);
 
 	public abstract void sendError(String error);
 }

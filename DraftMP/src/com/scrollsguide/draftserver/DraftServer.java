@@ -7,13 +7,13 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.eclipse.jetty.websocket.WebSocket;
 import org.eclipse.jetty.websocket.WebSocketHandler;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 
+import com.scrollsguide.draftserver.messages.GameListMessage;
 import com.scrollsguide.draftserver.messages.JoinMessage;
 import com.scrollsguide.draftserver.messages.Message;
 import com.scrollsguide.draftserver.messages.PartMessage;
+import com.scrollsguide.draftserver.messages.PasswordProtectedGameMessage;
+import com.scrollsguide.draftserver.messages.WrongPasswordMessage;
 
 public class DraftServer extends WebSocketHandler {
 
@@ -54,12 +54,13 @@ public class DraftServer extends WebSocketHandler {
 		return games;
 	}
 
-	public void broadcast(Message m) {
-		String msg = m.toString();
-		broadcast(msg);
-	}
+//	public void broadcast(Message m) {
+//		String msg = m.toString();
+//		broadcast(msg);
+//	}
 
-	public void broadcast(String msg) {
+	// send message to all players
+	public void broadcast(Message msg) {
 		for (HumanPlayer p : players) {
 			p.send(msg);
 		}
@@ -108,7 +109,7 @@ public class DraftServer extends WebSocketHandler {
 			broadcastGameList();
 		}
 
-		String partMsg = (new PartMessage(username, "the lobby")).toString();
+		PartMessage partMsg = new PartMessage(username, "the lobby");
 		for (HumanPlayer p : players) {
 			if (p != player) {
 				p.send(partMsg);
@@ -120,9 +121,9 @@ public class DraftServer extends WebSocketHandler {
 	 * Broadcasts all open, not-started games to every connected client.
 	 */
 	public void broadcastGameList() {
-		JSONObject gameList = getGameList();
+		GameListMessage glm = new GameListMessage(getGames());
 		for (HumanPlayer p : players) {
-			p.send(gameList.toString());
+			p.send(glm);
 		}
 	}
 
@@ -148,6 +149,7 @@ public class DraftServer extends WebSocketHandler {
 	 */
 	public Game createGame(HumanPlayer p, String id, String name, int packs, int maxplayers, int bots, int timeout,
 			String password) {
+		// check whether user has an open game already
 		boolean allowed = true;
 		for (Game g : games) {
 			if (g.getCreator() == p) {
@@ -215,14 +217,14 @@ public class DraftServer extends WebSocketHandler {
 			} else {
 				if (toJoin.hasPassword()) {
 					if (password.equals("")) { // not filled out yet
-						p.send("{\"msg\":\"hp\",\"d\":\"" + toJoin.getID() + "\"}");
+						p.send(new PasswordProtectedGameMessage(toJoin));
 						toJoin = null;
 					} else {
 						if (password.equals(toJoin.getPassword())) {
 							toJoin.playerJoins(p);
 							broadcastGameList();
 						} else {
-							p.send("{\"msg\":\"wp\"}");
+							p.send(new WrongPasswordMessage());
 							toJoin = null;
 						}
 					}
@@ -233,32 +235,5 @@ public class DraftServer extends WebSocketHandler {
 			}
 		}
 		return toJoin;
-	}
-
-	public JSONObject getGameList() {
-		JSONObject gameList = null;
-		try {
-			gameList = new JSONObject();
-			gameList.put("msg", "glist");
-			JSONArray gameArray = new JSONArray();
-
-			Set<Game> games = getGames();
-
-			for (Game g : games) {
-				if (!g.isStarted()) {
-					JSONObject j = new JSONObject();
-					j.put("n", g.getName());
-					j.put("id", g.getID());
-					j.put("p", g.getPlayerCount());
-					j.put("m", g.getMaxPlayers());
-					gameArray.put(j);
-				}
-			}
-
-			gameList.put("data", gameArray);
-		} catch (JSONException e) {
-			e.printStackTrace();
-		}
-		return gameList;
 	}
 }

@@ -18,6 +18,7 @@ public class Pack {
 
 		for (int i = 0; i < rarities.length; i++) {
 			for (int j = 0; j < rarities[i]; j++) {
+				// select random scroll that is not yet in the pack
 				Scroll singleScroll;
 				do {
 					singleScroll = g.getRandomScroll(i);

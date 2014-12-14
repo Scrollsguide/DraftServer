@@ -7,6 +7,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import com.scrollsguide.draftserver.messages.Message;
+
 public class BotPlayer extends Player {
 
 	private ScrollList scrolls;
@@ -25,6 +27,8 @@ public class BotPlayer extends Player {
 		isBot = true;
 
 		// main resource
+		// do id % resources to give all bots
+		// an even spead across resources
 		int mainResource = id % Settings.RESOURCES.length;
 		bias.put(Settings.RESOURCES[mainResource], 30);
 
@@ -46,8 +50,12 @@ public class BotPlayer extends Player {
 	public void setUsername(String username) {
 		this.username = username;
 	}
+	
+	@Override 
+	public void send(Message msg){
+		send(msg.toString());
+	}
 
-	@Override
 	public void send(String fromServer) {
 		try {
 			JSONObject in = new JSONObject(fromServer);
@@ -91,9 +99,10 @@ public class BotPlayer extends Player {
 					start += bias.get(s);
 				}
 
-				if (round < stopIncrementRound) { // don't increment anymore after this
+				if (round < stopIncrementRound) { // don't increment bias anymore after this
 					bias.put(resource, (int) (bias.get(resource) * biasIncrement));
 				}
+				// debug
 				printBias();
 
 				ArrayList<Integer> canPick = new ArrayList<Integer>();
@@ -106,6 +115,7 @@ public class BotPlayer extends Player {
 				}
 
 				int maxValue = -1; // -1 to make sure the loop always picks a scroll from canPick when r.nextInt() == 0
+				// select scroll with highest value
 				int scrollIndex = 0;
 				for (Integer i : canPick) {
 					int valueForScroll = scrolls.getById(packList.getInt(i)).getRandomizedValue(r);// r.nextInt(10) * scrolls.getById(packList.getInt(i)).getRarity();
@@ -115,6 +125,7 @@ public class BotPlayer extends Player {
 					}
 				}
 
+				// send pick message
 				this.inGame.pickScroll(this, packList.getInt(scrollIndex));
 			}
 		} catch (JSONException e) {
