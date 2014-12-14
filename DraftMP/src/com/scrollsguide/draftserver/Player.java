@@ -40,8 +40,6 @@ public abstract class Player {
 	}
 
 	public abstract void send(Message msg);
-	
-	// public abstract void send(String msg);
 
 	public abstract void sendError(String error);
 }
