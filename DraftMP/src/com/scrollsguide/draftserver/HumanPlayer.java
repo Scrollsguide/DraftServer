@@ -137,24 +137,9 @@ public class HumanPlayer extends Player implements WebSocket.OnTextMessage {
 		try {
 			connection.sendMessage(msg.toString());
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
-	
-	/**
-	 * Yes, public, also used by DrawServer
-	 * @param msg to send
-	 */
-//	@Override
-//	public void send(String msg) {
-//		System.out.println("Sending to " + username + ": " + msg);
-//		try {
-//			connection.sendMessage(msg);
-//		} catch (IOException e) {
-//			e.printStackTrace();
-//		}
-//	}
 
 	public boolean isLoggedIn() {
 		// ugly
